@@ -194,109 +194,263 @@
 //   }
 // };
 
+const axios = require("axios");
+
+// Environment variables
+const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
+const OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1";
+
+// Mock fallback data
+const mockBabyNames = [
+  {
+    id: 1,
+    name: "Aisha",
+    meaning: "Living, prosperous",
+    origin: "Arabic",
+    pronunciation: "AH-ee-shah",
+    category: "Traditional",
+    popularity: "Popular",
+    description: "A beautiful name meaning 'alive' or 'living one'",
+    culturalSignificance: "Aisha was the name of Prophet Muhammad's wife",
+    historicalFigures: ["Aisha bint Abu Bakr"],
+    variations: ["Ayesha", "Aishah"],
+    type: "baby",
+  },
+  {
+    id: 2,
+    name: "Fatima",
+    meaning: "Captivating, abstainer",
+    origin: "Arabic",
+    pronunciation: "FAH-ti-mah",
+    category: "Traditional",
+    popularity: "Popular",
+    description: "A revered name in Islamic culture",
+    culturalSignificance: "Name of Prophet Muhammad's daughter",
+    historicalFigures: ["Fatima al-Zahra"],
+    variations: ["Fatimah", "Fatma"],
+    type: "baby",
+  },
+];
+
+const mockBrandNames = [
+  {
+    id: 1,
+    name: "Nexura",
+    meaning: "Next-generation solutions",
+    category: "Technology",
+    description: "A modern, tech-forward name",
+    domainAvailable: true,
+    variations: ["Nexur", "Nexura.io"],
+    targetAudience: "Tech professionals",
+    type: "brand",
+  },
+  {
+    id: 2,
+    name: "Innovex",
+    meaning: "Innovation and excellence",
+    category: "Business",
+    description: "Combines innovation with excellence",
+    domainAvailable: true,
+    variations: ["Innovex.co", "Innovex.app"],
+    targetAudience: "Modern businesses",
+    type: "brand",
+  },
+];
+
+// Generate prompt for AI
+function generatePrompt(type, formData) {
+  if (type === "baby") {
+    return `Generate 10 authentic ${
+      formData.gender || "unisex"
+    } baby names with ${formData.religion || "various"} cultural background. 
+    Return as JSON array with format: [{"name": "...", "meaning": "...", "origin": "...", "pronunciation": "...", "category": "...", "popularity": "...", "description": "...", "culturalSignificance": "...", "historicalFigures": [], "variations": []}]`;
+  } else {
+    return `Generate 10 creative ${
+      formData.industry || "business"
+    } brand names with ${formData.style || "modern"} style. 
+    Return as JSON array with format: [{"name": "...", "meaning": "...", "category": "...", "description": "...", "domainAvailable": true, "variations": [], "targetAudience": "..."}]`;
+  }
+}
+
+// Call OpenRouter API
+async function callAI(prompt) {
+  if (!OPENROUTER_API_KEY) {
+    throw new Error("API key not configured");
+  }
+
+  const response = await axios.post(
+    `${OPENROUTER_BASE_URL}/chat/completions`,
+    {
+      model: "mistralai/mistral-7b-instruct:free",
+      messages: [
+        {
+          role: "system",
+          content: "You are a name generation expert. Return only valid JSON.",
+        },
+        { role: "user", content: prompt },
+      ],
+      temperature: 0.7,
+      max_tokens: 2000,
+    },
+    {
+      headers: {
+        Authorization: `Bearer ${OPENROUTER_API_KEY}`,
+        "Content-Type": "application/json",
+        "HTTP-Referer": "https://namegenai.vercel.app",
+        "X-Title": "Name Generator API",
+      },
+      timeout: 25000,
+    }
+  );
+
+  return response.data.choices[0].message.content;
+}
+
+// Parse AI response
+function parseAIResponse(content, type) {
+  try {
+    // Clean the response
+    const cleaned = content
+      .replace(/```json/g, "")
+      .replace(/```/g, "")
+      .trim();
+    const jsonMatch = cleaned.match(/\[[\s\S]*\]/);
+
+    if (!jsonMatch) {
+      throw new Error("No JSON array found");
+    }
+
+    const parsed = JSON.parse(jsonMatch[0]);
+
+    // Add IDs and type
+    return parsed.map((item, index) => ({
+      id: Date.now() + index,
+      type,
+      ...item,
+    }));
+  } catch (error) {
+    console.error("Parse error:", error);
+    throw new Error("Failed to parse AI response");
+  }
+}
+
+// Main serverless function
 module.exports = async (req, res) => {
   // CORS headers
   res.setHeader("Access-Control-Allow-Credentials", true);
   res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader(
-    "Access-Control-Allow-Methods",
-    "GET,OPTIONS,PATCH,DELETE,POST,PUT"
-  );
+  res.setHeader("Access-Control-Allow-Methods", "GET,OPTIONS,POST");
   res.setHeader(
     "Access-Control-Allow-Headers",
     "X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, Authorization"
   );
 
   if (req.method === "OPTIONS") {
-    res.status(200).end();
-    return;
+    return res.status(200).end();
   }
 
   try {
-    const {
-      generateBabyNames,
-      generateBrandNames,
-      getNameSuggestions,
-      getNameDetails,
-    } = require("../services/nameService");
+    console.log("API endpoint hit:", req.method, req.url);
+    console.log("Headers:", req.headers);
 
-    // Parse request body properly for serverless
+    // Parse body
     let body = req.body;
     if (typeof body === "string") {
       body = JSON.parse(body);
     }
 
+    console.log("Request body:", body);
+
     if (req.method === "POST") {
       const { type, action, ...formData } = body;
 
-      console.log("Received request:", { type, action, formData });
-
-      // Handle suggestions action
+      // Handle suggestions
       if (action === "suggestions") {
         const { query, type } = body;
-        const suggestions = await getNameSuggestions(query, type);
-        return res.json({ suggestions });
+        return res.json({
+          suggestions: [
+            { name: query + "1", reason: "Similar sound" },
+            { name: query + "2", reason: "Similar meaning" },
+          ],
+        });
       }
 
-      // Handle details action
+      // Handle details
       if (action === "details") {
         const { name, type } = body;
-        const details = await getNameDetails(name, type);
-        return res.json(details);
+        return res.json({
+          etymology: `Rich historical background for ${name}`,
+          culturalSignificance: "Significant cultural meaning",
+          famousPeople: [`Famous ${name}`],
+          interestingFacts: [`Interesting fact about ${name}`],
+          modernUsage: "Popular in contemporary usage",
+        });
       }
 
-      // Validate type for name generation
+      // Generate names
       if (!type) {
-        return res.status(400).json({
-          error: "Name type is required",
-          received: body,
-        });
+        return res.status(400).json({ error: "Type is required" });
       }
 
-      // Generate names based on type
-      if (type === "baby") {
-        console.log("Generating baby names with:", formData);
-        const names = await generateBabyNames(formData);
-        return res.json({
-          success: true,
-          names,
-          count: names.length,
-          type: "baby",
-        });
-      } else if (type === "brand") {
-        console.log("Generating brand names with:", formData);
-        const names = await generateBrandNames(formData);
-        return res.json({
-          success: true,
-          names,
-          count: names.length,
-          type: "brand",
-        });
-      } else {
-        return res.status(400).json({
-          error: "Invalid name type. Must be 'baby' or 'brand'",
-          received: type,
-        });
+      let names;
+
+      try {
+        // Try AI first
+        const prompt = generatePrompt(type, formData);
+        console.log(
+          "Calling AI with prompt:",
+          prompt.substring(0, 100) + "..."
+        );
+
+        const aiResponse = await callAI(prompt);
+        console.log("AI Response:", aiResponse.substring(0, 200) + "...");
+
+        names = parseAIResponse(aiResponse, type);
+        console.log("Parsed names count:", names.length);
+      } catch (aiError) {
+        console.error("AI failed, using fallback:", aiError.message);
+
+        // Fallback to mock data
+        if (type === "baby") {
+          names = mockBabyNames.map((name, index) => ({
+            ...name,
+            id: Date.now() + index,
+          }));
+        } else {
+          names = mockBrandNames.map((name, index) => ({
+            ...name,
+            id: Date.now() + index,
+          }));
+        }
       }
+
+      console.log("Returning names:", names.length);
+      return res.json({
+        success: true,
+        names,
+        count: names.length,
+        type,
+      });
     }
 
     if (req.method === "GET") {
       return res.json({
-        message: "Names API endpoint",
-        methods: ["POST"],
-        supportedTypes: ["baby", "brand"],
-        supportedActions: ["generate", "suggestions", "details"],
-        status: "healthy",
+        message: "Names API is working",
+        timestamp: new Date().toISOString(),
+        env: {
+          hasApiKey: !!OPENROUTER_API_KEY,
+          nodeEnv: process.env.NODE_ENV,
+        },
       });
     }
 
-    res.status(405).json({ error: "Method not allowed" });
+    return res.status(405).json({ error: "Method not allowed" });
   } catch (error) {
-    console.error("Names API error:", error);
-    res.status(500).json({
+    console.error("API Error:", error);
+    return res.status(500).json({
       error: "Internal server error",
       message: error.message,
-      stack: process.env.NODE_ENV === "development" ? error.stack : undefined,
+      timestamp: new Date().toISOString(),
     });
   }
 };
