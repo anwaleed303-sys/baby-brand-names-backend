@@ -33,3 +33,4 @@ coverage/
 
 # Compiled binary addons
 .env
+.vercel
