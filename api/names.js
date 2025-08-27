@@ -1596,260 +1596,64 @@ const {
   generateBrandNames,
 } = require("../services/openRouterService");
 
-// Enhanced CORS headers function
-function setCorsHeaders(res) {
-  res.setHeader("Access-Control-Allow-Credentials", "true");
+module.exports = async (req, res) => {
+  // CORS headers
+  res.setHeader("Access-Control-Allow-Credentials", true);
   res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Methods", "GET,OPTIONS,POST,PUT,DELETE");
+  res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
   res.setHeader(
     "Access-Control-Allow-Headers",
-    "X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, Authorization, Origin"
+    "X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, Authorization"
   );
-}
 
-// Fallback names when API fails
-const getFallbackNames = (type, formData) => {
-  const babyNames = [
-    {
-      id: Date.now() + 1,
-      name: "Aisha",
-      meaning: "Living, prosperous",
-      origin: "Arabic",
-      pronunciation: "AH-ee-shah",
-      category: "Traditional",
-      popularity: "Popular",
-      description: "A beautiful name meaning 'alive' or 'living one'",
-      culturalSignificance: "Name of Prophet Muhammad's wife",
-      historicalFigures: ["Aisha bint Abu Bakr"],
-      variations: ["Ayesha", "Aishah"],
-      type: "baby",
-    },
-    {
-      id: Date.now() + 2,
-      name: "Omar",
-      meaning: "Flourishing, thriving",
-      origin: "Arabic",
-      pronunciation: "OH-mar",
-      category: "Traditional",
-      popularity: "Popular",
-      description: "A strong name meaning prosperity",
-      culturalSignificance: "Name of the second Caliph",
-      historicalFigures: ["Omar ibn al-Khattab"],
-      variations: ["Umar", "Omer"],
-      type: "baby",
-    },
-  ];
-
-  const brandNames = [
-    {
-      id: Date.now() + 1,
-      name: "Nexura",
-      meaning: "Next-generation solutions",
-      category: "Technology",
-      description: "A modern, tech-forward name",
-      domainAvailable: true,
-      variations: ["Nexur", "Nexura.io"],
-      targetAudience: "Tech professionals",
-      type: "brand",
-    },
-    {
-      id: Date.now() + 2,
-      name: "Innovex",
-      meaning: "Innovation and excellence",
-      category: "Business",
-      description: "Combines innovation with excellence",
-      domainAvailable: true,
-      variations: ["Innovex.co", "Innovex.app"],
-      targetAudience: "Modern businesses",
-      type: "brand",
-    },
-  ];
-
-  return type === "baby" ? babyNames : brandNames;
-};
-
-// Main serverless function
-module.exports = async (req, res) => {
-  // Set CORS headers for all requests
-  setCorsHeaders(res);
-
-  // Handle preflight requests
   if (req.method === "OPTIONS") {
     return res.status(200).end();
   }
 
-  try {
-    console.log("Names API endpoint hit:", req.method, req.url);
-
-    // Parse body safely
-    let body = {};
+  if (req.method === "POST") {
     try {
-      if (req.body) {
-        if (typeof req.body === "string") {
-          const trimmed = req.body.trim();
-          if (trimmed) {
-            body = JSON.parse(trimmed);
-          }
-        } else {
-          body = req.body;
-        }
-      }
-    } catch (parseError) {
-      console.error("Body parse error:", parseError);
-      return res.status(400).json({
-        success: false,
-        error: "Invalid JSON in request body",
-        message: parseError.message,
-        timestamp: new Date().toISOString(),
-      });
-    }
+      const { type, ...formData } = req.body;
 
-    console.log("Request body:", body);
+      console.log("Name generation request:", { type, formData });
 
-    if (req.method === "POST") {
-      const { type, action, ...formData } = body;
-
-      // Handle suggestions
-      if (action === "suggestions") {
-        const { query, type: suggestionType } = body;
-        console.log("Handling suggestions for:", query, suggestionType);
-
-        return res.status(200).json({
+      if (type === "baby") {
+        const names = await generateBabyNames(formData);
+        return res.json({
           success: true,
-          suggestions: [
-            { name: query + "Pro", reason: "Professional variant" },
-            { name: query + "X", reason: "Modern variant" },
-            { name: query + "Plus", reason: "Enhanced version" },
-          ],
+          count: names.length,
+          names: names,
           timestamp: new Date().toISOString(),
         });
-      }
-
-      // Handle details
-      if (action === "details") {
-        const { name, type: detailType } = body;
-        console.log("Handling details for:", name, detailType);
-
-        return res.status(200).json({
+      } else if (type === "brand") {
+        const names = await generateBrandNames(formData);
+        return res.json({
           success: true,
-          etymology: `Rich historical background for ${name}`,
-          culturalSignificance: "Significant cultural meaning",
-          famousPeople: [`Famous person named ${name}`],
-          interestingFacts: [`Interesting fact about ${name}`],
-          modernUsage: "Popular in contemporary usage",
+          count: names.length,
+          names: names,
           timestamp: new Date().toISOString(),
         });
-      }
-
-      // Validate required fields for name generation
-      if (!type) {
+      } else {
         return res.status(400).json({
           success: false,
-          error: "Type is required",
-          received: body,
-          expected: { type: "baby or brand" },
-          timestamp: new Date().toISOString(),
+          error: "Invalid type. Must be 'baby' or 'brand'",
         });
       }
-
-      console.log(`Starting ${type} name generation with:`, formData);
-
-      try {
-        let result;
-
-        // Call the appropriate service function
-        if (type === "baby") {
-          result = await generateBabyNames(formData);
-        } else if (type === "brand") {
-          result = await generateBrandNames(formData);
-        } else {
-          return res.status(400).json({
-            success: false,
-            error: "Invalid type. Must be 'baby' or 'brand'",
-            timestamp: new Date().toISOString(),
-          });
-        }
-
-        console.log("Service result:", result);
-
-        // Check if the service returned a successful result
-        if (
-          result &&
-          result.success &&
-          result.names &&
-          Array.isArray(result.names)
-        ) {
-          console.log(`✅ Successfully generated ${result.names.length} names`);
-
-          return res.status(200).json({
-            success: true,
-            names: result.names,
-            count: result.names.length,
-            type,
-            language: formData.language || "english",
-            timestamp: new Date().toISOString(),
-          });
-        } else {
-          // AI service failed, use fallback
-          console.warn("AI service failed, using fallback names");
-          const fallbackNames = getFallbackNames(type, formData);
-
-          return res.status(200).json({
-            success: true,
-            names: fallbackNames,
-            count: fallbackNames.length,
-            type,
-            language: formData.language || "english",
-            fallback: true,
-            timestamp: new Date().toISOString(),
-          });
-        }
-      } catch (serviceError) {
-        console.error("Service error:", serviceError);
-
-        // Use fallback names when service fails
-        const fallbackNames = getFallbackNames(type, formData);
-
-        return res.status(200).json({
-          success: true,
-          names: fallbackNames,
-          count: fallbackNames.length,
-          type,
-          language: formData.language || "english",
-          fallback: true,
-          error: serviceError.message,
-          timestamp: new Date().toISOString(),
-        });
-      }
-    }
-
-    if (req.method === "GET") {
-      return res.status(200).json({
-        success: true,
-        message: "Names API is working",
-        timestamp: new Date().toISOString(),
-        endpoints: {
-          POST: "Generate names",
-          "POST with action=suggestions": "Get name suggestions",
-          "POST with action=details": "Get name details",
-        },
+    } catch (error) {
+      console.error("Error generating names:", error);
+      return res.status(500).json({
+        success: false,
+        error: error.message,
       });
     }
-
-    return res.status(405).json({
-      success: false,
-      error: "Method not allowed",
-      allowed: ["GET", "POST", "OPTIONS"],
-      received: req.method,
-      timestamp: new Date().toISOString(),
-    });
-  } catch (error) {
-    console.error("API Error:", error);
-    return res.status(500).json({
-      success: false,
-      error: "Internal server error",
-      message: error.message,
-      timestamp: new Date().toISOString(),
-    });
   }
+
+  // GET request - show info
+  res.json({
+    message: "Send POST request to generate names",
+    example: {
+      type: "baby",
+      gender: "boy",
+      religion: "buddhist",
+    },
+  });
 };
