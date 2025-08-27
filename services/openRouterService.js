@@ -1513,20 +1513,15 @@
 
 const axios = require("axios");
 
-// Env vars
+// Environment variables
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
-const OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1";
+const OPENROUTER_BASE_URL =
+  process.env.OPENROUTER_BASE_URL || "https://openrouter.ai/api/v1";
 
-console.log("OpenRouter API Key present:", !!OPENROUTER_API_KEY);
-
-if (!OPENROUTER_API_KEY) {
-  console.error("❌ OPENROUTER_API_KEY not found in environment variables");
-}
-
-// Axios instance with better configuration
+// Create axios instance
 const openRouterClient = axios.create({
   baseURL: OPENROUTER_BASE_URL,
-  timeout: 60000, // Reduced timeout
+  timeout: 30000, // 30 seconds
   headers: {
     Authorization: `Bearer ${OPENROUTER_API_KEY}`,
     "Content-Type": "application/json",
@@ -1535,35 +1530,40 @@ const openRouterClient = axios.create({
   },
 });
 
-// Interceptors with better error handling
+// Request interceptor
 openRouterClient.interceptors.request.use(
   (config) => {
-    console.log("🤖 OpenRouter API Request:", config.url);
+    console.log(
+      "🤖 OpenRouter Request:",
+      config.method?.toUpperCase(),
+      config.url
+    );
     return config;
   },
   (error) => {
-    console.error("Request interceptor error:", error);
+    console.error("Request error:", error);
     return Promise.reject(error);
   }
 );
 
+// Response interceptor
 openRouterClient.interceptors.response.use(
   (response) => {
-    console.log("✅ OpenRouter Response received successfully");
+    console.log("✅ OpenRouter Response:", response.status);
     return response;
   },
   (error) => {
-    console.error("OpenRouter API Error:", {
+    console.error("❌ OpenRouter Error:", {
       status: error.response?.status,
+      statusText: error.response?.statusText,
       data: error.response?.data,
-      message: error.message,
     });
 
     if (error.response?.status === 401) {
-      throw new Error("Invalid OpenRouter API key");
+      throw new Error("OpenRouter API key is invalid or missing");
     }
     if (error.response?.status === 429) {
-      throw new Error("Rate limit exceeded. Please try again later.");
+      throw new Error("Rate limit exceeded. Please try again in a moment.");
     }
     if (error.response?.status === 402) {
       throw new Error(
@@ -1571,368 +1571,268 @@ openRouterClient.interceptors.response.use(
       );
     }
     if (error.code === "ECONNABORTED") {
-      throw new Error(
-        "Request timeout. The AI service took too long to respond."
-      );
+      throw new Error("Request timeout. Please try again.");
     }
 
-    // Generic error with more details
-    const errorMessage =
+    throw new Error(
       error.response?.data?.error?.message ||
-      error.response?.data?.message ||
-      error.message ||
-      "Failed to connect to AI service";
-
-    throw new Error(errorMessage);
+        error.message ||
+        "AI service unavailable"
+    );
   }
 );
 
 /**
- * Generate Baby Name Prompt
+ * Generate baby name prompt
  */
-function generateBabyNamePrompt(formData) {
+function createBabyNamePrompt(formData) {
   const {
-    gender = "any",
-    religion = "various",
+    gender = "unisex",
+    religion = "modern",
     language = "english",
   } = formData;
 
-  return `You are an expert baby name consultant. Generate exactly 10 authentic baby names.
-
-REQUIREMENTS:
+  return `Generate exactly 10 authentic baby names with these requirements:
 - Gender: ${gender}
-- Religion/Culture: ${religion}
+- Religion/Culture: ${religion}  
 - Language: ${language}
 
-CRITICAL INSTRUCTIONS:
-1. Generate ONLY authentic, real names - NO placeholders
-2. Each name must be culturally appropriate and historically accurate
-3. Return ONLY valid JSON array format
-4. No markdown, no explanations, no additional text
+CRITICAL: Return ONLY a valid JSON array. No markdown, no explanations.
 
-EXACT JSON FORMAT REQUIRED:
+Format:
 [
   {
     "name": "Aisha",
-    "meaning": "Living, prosperous",
+    "meaning": "Living, prosperous", 
     "origin": "Arabic",
     "pronunciation": "AH-ee-shah",
     "category": "Traditional",
-    "popularity": "Popular",
-    "description": "A beautiful Arabic name meaning alive or living one",
-    "culturalSignificance": "Aisha was the name of Prophet Muhammads wife",
+    "popularity": "Popular", 
+    "description": "A beautiful name meaning alive or living one",
+    "culturalSignificance": "Name of Prophet Muhammad's wife",
     "historicalFigures": ["Aisha bint Abu Bakr"],
     "variations": ["Ayesha", "Aishah"]
   }
 ]
 
-Generate exactly 10 unique, authentic names following this format.`;
+Generate 10 unique, authentic names in this exact format.`;
 }
 
 /**
- * Generate Brand Name Prompt
+ * Generate brand name prompt
  */
-function generateBrandNamePrompt(formData) {
+function createBrandNamePrompt(formData) {
   const {
     industry = "business",
     style = "modern",
     language = "english",
   } = formData;
 
-  return `You are an expert brand naming consultant. Generate exactly 10 creative brand names.
-
-REQUIREMENTS:
+  return `Generate exactly 10 creative brand names with these requirements:
 - Industry: ${industry}
 - Style: ${style}
 - Language: ${language}
 
-CRITICAL INSTRUCTIONS:
-1. Generate ONLY creative, brandable names - NO placeholders
-2. Each name must be memorable and suitable for business use
-3. Return ONLY valid JSON array format
-4. No markdown, no explanations, no additional text
+CRITICAL: Return ONLY a valid JSON array. No markdown, no explanations.
 
-EXACT JSON FORMAT REQUIRED:
+Format:
 [
   {
     "name": "Nexura",
     "meaning": "Next-generation solutions",
     "category": "Technology",
-    "description": "A modern tech-forward name combining next and aura",
+    "description": "A modern, tech-forward name suggesting innovation",
     "domainAvailable": true,
     "variations": ["Nexur", "Nexura.io"],
-    "targetAudience": "Tech-savvy professionals"
+    "targetAudience": "Tech professionals"
   }
 ]
 
-Generate exactly 10 unique, creative brand names following this format.`;
+Generate 10 unique, creative brand names in this exact format.`;
 }
 
 /**
- * Extract and Parse JSON with better error handling
+ * Parse and validate AI response
  */
-function extractAndParseJSON(content, type = "baby") {
+function parseAIResponse(content, type) {
   try {
-    console.log("Raw content length:", content?.length || 0);
+    console.log("Raw AI response:", content.substring(0, 200) + "...");
 
-    if (!content || typeof content !== "string") {
-      throw new Error("Invalid content received from API");
-    }
-
-    // Clean the content
-    let clean = content
+    // Clean response
+    let cleaned = content
       .replace(/```json/gi, "")
       .replace(/```/g, "")
-      .replace(/^\s*[\r\n]+/gm, "")
       .trim();
 
-    console.log("Cleaned content preview:", clean.substring(0, 200));
-
-    // Find JSON array
-    const arrayMatch = clean.match(/\[\s*{[\s\S]*}\s*\]/);
-    if (!arrayMatch) {
-      console.error("No JSON array found in content");
-      throw new Error("No valid JSON array found in API response");
+    // Extract JSON array
+    const jsonMatch = cleaned.match(/\[[\s\S]*\]/);
+    if (!jsonMatch) {
+      throw new Error("No JSON array found in AI response");
     }
 
-    let jsonString = arrayMatch[0];
-
-    // Fix common JSON issues
-    jsonString = jsonString
-      .replace(/,\s*}/g, "}")
-      .replace(/,\s*]/g, "]")
-      .replace(/[\u201C\u201D]/g, '"')
-      .replace(/[\u2018\u2019]/g, "'")
-      .replace(/'/g, '"');
-
-    console.log("Final JSON string preview:", jsonString.substring(0, 300));
-
-    const parsed = JSON.parse(jsonString);
+    const parsed = JSON.parse(jsonMatch[0]);
 
     if (!Array.isArray(parsed)) {
-      throw new Error("Parsed content is not an array");
+      throw new Error("AI response is not an array");
     }
 
-    if (parsed.length === 0) {
-      throw new Error("Empty array received from API");
-    }
+    // Validate and enhance names
+    const validated = parsed.map((item, index) => {
+      if (
+        !item.name ||
+        item.name.includes("Name ") ||
+        item.name.match(/name\s*\d+/i)
+      ) {
+        throw new Error("AI returned placeholder names");
+      }
 
-    console.log(`Successfully parsed ${parsed.length} ${type} names`);
-    return parsed;
-  } catch (err) {
-    console.error("JSON parsing error:", err.message);
-    throw new Error(`Failed to parse API response: ${err.message}`);
-  }
-}
-
-/**
- * Get fallback names when API fails
- */
-function getFallbackNames(type, formData = {}) {
-  console.log(`Using fallback ${type} names`);
-
-  if (type === "baby") {
-    return [
-      {
-        name:
-          formData.gender === "boy"
-            ? "Ahmed"
-            : formData.gender === "girl"
-            ? "Aisha"
-            : "Alex",
-        meaning: "Praised one",
-        origin: "Arabic",
-        pronunciation: "AH-med",
-        category: "Traditional",
-        popularity: "Popular",
-        description: "A classic name with deep cultural significance",
-        culturalSignificance: "Widely respected name in Islamic culture",
-        historicalFigures: ["Ahmed ibn Hanbal"],
-        variations: ["Ahmad"],
-      },
-      {
-        name:
-          formData.gender === "boy"
-            ? "Omar"
-            : formData.gender === "girl"
-            ? "Fatima"
-            : "Jordan",
-        meaning: "Flourishing",
-        origin: "Arabic",
-        pronunciation: "OH-mar",
-        category: "Traditional",
-        popularity: "Popular",
-        description: "A strong name meaning prosperity",
-        culturalSignificance: "Name of the second Caliph",
-        historicalFigures: ["Omar ibn al-Khattab"],
-        variations: ["Umar"],
-      },
-    ];
-  } else {
-    return [
-      {
-        name: "TechFlow",
-        meaning: "Seamless technology experience",
-        category: "Technology",
-        description: "Modern flow-based solutions for contemporary challenges",
-        domainAvailable: true,
-        variations: ["TechFlow.ai", "TechFlowPro"],
-        targetAudience: "Tech startups",
-      },
-      {
-        name: "Innovex",
-        meaning: "Innovation and excellence",
-        category: "Business",
-        description:
-          "Combines innovation with excellence to create a powerful brand",
-        domainAvailable: true,
-        variations: ["Innovex.co", "Innovex.app"],
-        targetAudience: "Modern businesses",
-      },
-    ];
-  }
-}
-
-/**
- * Call OpenRouter API with comprehensive error handling
- */
-async function callOpenRouterAPI(prompt, type = "baby", formData = {}) {
-  console.log(`🚀 Calling OpenRouter API for ${type} names`);
-
-  try {
-    // Check if API key is available
-    if (!OPENROUTER_API_KEY) {
-      console.warn("No OpenRouter API key, using fallback");
-      const fallbackNames = getFallbackNames(type, formData);
       return {
-        success: true,
-        message: `${type} names generated successfully (fallback)`,
-        timestamp: new Date().toISOString(),
-        count: fallbackNames.length,
-        names: fallbackNames.map((name, index) => ({
-          id: Date.now() + index,
-          type,
-          ...name,
-        })),
-        source: "fallback",
+        id: Date.now() + index,
+        type,
+        name: item.name,
+        meaning: item.meaning || "Beautiful meaning",
+        origin: item.origin || "Various",
+        category: item.category || "Traditional",
+        description: item.description || `A ${type} name with significance`,
+        ...item,
       };
+    });
+
+    console.log(`✅ Successfully parsed ${validated.length} ${type} names`);
+    return validated;
+  } catch (error) {
+    console.error("Parse error:", error.message);
+    throw new Error(`Failed to parse AI response: ${error.message}`);
+  }
+}
+
+/**
+ * Call OpenRouter API
+ */
+async function callOpenRouterAPI(prompt, type) {
+  try {
+    console.log(`🚀 Calling OpenRouter API for ${type} names`);
+
+    if (!OPENROUTER_API_KEY) {
+      throw new Error("OpenRouter API key not configured");
     }
 
-    const requestBody = {
+    const response = await openRouterClient.post("/chat/completions", {
       model: "mistralai/mistral-7b-instruct:free",
       messages: [
         {
           role: "system",
-          content: `You are an expert ${type} name consultant. Always return only valid JSON array with no extra text.`,
+          content: `You are an expert ${type} name consultant. Always return only valid JSON arrays with no additional text.`,
         },
-        { role: "user", content: prompt },
+        {
+          role: "user",
+          content: prompt,
+        },
       ],
       temperature: 0.7,
       max_tokens: 2000,
-      stream: false,
-    };
-
-    console.log("Making request to OpenRouter...");
-
-    const response = await openRouterClient.post(
-      "/chat/completions",
-      requestBody
-    );
-
-    console.log("OpenRouter response received:", {
-      status: response.status,
-      choices: response.data.choices?.length || 0,
     });
 
-    if (!response.data?.choices?.[0]?.message?.content) {
-      throw new Error("Empty response from OpenRouter API");
+    const content = response.data?.choices?.[0]?.message?.content;
+    if (!content) {
+      throw new Error("No content in AI response");
     }
 
-    const content = response.data.choices[0].message.content;
-    console.log("Content preview:", content.substring(0, 100) + "...");
+    return content;
+  } catch (error) {
+    console.error(`❌ OpenRouter API call failed:`, error.message);
+    throw error;
+  }
+}
 
-    const parsedNames = extractAndParseJSON(content, type);
+/**
+ * Generate baby names
+ */
+async function generateBabyNames(formData) {
+  try {
+    console.log("🍼 Generating baby names with:", formData);
 
-    const validatedNames = parsedNames.map((name, index) => ({
-      id: Date.now() + index,
-      type,
-      name: name.name || `Name ${index + 1}`,
-      meaning: name.meaning || "Beautiful meaning",
-      ...name,
-    }));
-
-    console.log(
-      `✅ Successfully generated ${validatedNames.length} ${type} names`
-    );
+    const prompt = createBabyNamePrompt(formData);
+    const aiResponse = await callOpenRouterAPI(prompt, "baby");
+    const names = parseAIResponse(aiResponse, "baby");
 
     return {
       success: true,
-      message: `${type} names generated successfully`,
+      names,
+      count: names.length,
+      type: "baby",
+      language: formData.language || "english",
       timestamp: new Date().toISOString(),
-      count: validatedNames.length,
-      names: validatedNames,
-      source: "openrouter",
     };
   } catch (error) {
-    console.error(`❌ OpenRouter API call failed for ${type}:`, error.message);
-
-    // Use fallback names when API fails
-    const fallbackNames = getFallbackNames(type, formData);
-
+    console.error("❌ Baby name generation failed:", error.message);
     return {
-      success: true, // Still return success with fallback
-      message: `${type} names generated successfully (fallback due to API error)`,
+      success: false,
+      error: error.message,
+      type: "baby",
       timestamp: new Date().toISOString(),
-      count: fallbackNames.length,
-      names: fallbackNames.map((name, index) => ({
-        id: Date.now() + index,
-        type,
-        ...name,
-      })),
-      source: "fallback",
-      apiError: error.message,
     };
   }
 }
 
 /**
- * Public Methods
+ * Generate brand names
  */
-async function generateBabyNames(formData) {
-  const prompt = generateBabyNamePrompt(formData);
-  return callOpenRouterAPI(prompt, "baby", formData);
-}
-
 async function generateBrandNames(formData) {
-  const prompt = generateBrandNamePrompt(formData);
-  return callOpenRouterAPI(prompt, "brand", formData);
-}
-
-async function testOpenRouterConnection() {
   try {
-    console.log("Testing OpenRouter connection...");
-    const result = await generateBabyNames({
-      gender: "girl",
-      religion: "islamic",
-      language: "english",
-    });
+    console.log("🏢 Generating brand names with:", formData);
+
+    const prompt = createBrandNamePrompt(formData);
+    const aiResponse = await callOpenRouterAPI(prompt, "brand");
+    const names = parseAIResponse(aiResponse, "brand");
+
     return {
       success: true,
-      message: "OpenRouter connection test successful",
-      data: result,
+      names,
+      count: names.length,
+      type: "brand",
+      language: formData.language || "english",
+      timestamp: new Date().toISOString(),
+    };
+  } catch (error) {
+    console.error("❌ Brand name generation failed:", error.message);
+    return {
+      success: false,
+      error: error.message,
+      type: "brand",
+      timestamp: new Date().toISOString(),
+    };
+  }
+}
+
+/**
+ * Test connection
+ */
+async function testOpenRouterConnection() {
+  try {
+    console.log("🧪 Testing OpenRouter connection");
+
+    const testPrompt = `Return exactly this JSON: [{"name": "TestName", "meaning": "Test meaning"}]`;
+    const response = await callOpenRouterAPI(testPrompt, "test");
+
+    return {
+      success: true,
+      message: "OpenRouter connection successful",
+      response: response.substring(0, 100),
+      timestamp: new Date().toISOString(),
     };
   } catch (error) {
     return {
       success: false,
-      message: "OpenRouter connection test failed",
       error: error.message,
+      timestamp: new Date().toISOString(),
     };
   }
 }
 
 module.exports = {
-  callOpenRouterAPI,
   generateBabyNames,
   generateBrandNames,
   testOpenRouterConnection,
+  callOpenRouterAPI,
 };

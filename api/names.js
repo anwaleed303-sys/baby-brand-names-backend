@@ -1594,7 +1594,6 @@
 const {
   generateBabyNames,
   generateBrandNames,
-  testOpenRouterConnection,
 } = require("../services/openRouterService");
 
 // Enhanced CORS headers function
@@ -1608,62 +1607,66 @@ function setCorsHeaders(res) {
   );
 }
 
-// Mock fallback data
-const mockBabyNames = [
-  {
-    id: 1,
-    name: "Aisha",
-    meaning: "Living, prosperous",
-    origin: "Arabic",
-    pronunciation: "AH-ee-shah",
-    category: "Traditional",
-    popularity: "Popular",
-    description: "A beautiful name meaning 'alive' or 'living one'",
-    culturalSignificance: "Aisha was the name of Prophet Muhammad's wife",
-    historicalFigures: ["Aisha bint Abu Bakr"],
-    variations: ["Ayesha", "Aishah"],
-    type: "baby",
-  },
-  {
-    id: 2,
-    name: "Fatima",
-    meaning: "Captivating, abstainer",
-    origin: "Arabic",
-    pronunciation: "FAH-ti-mah",
-    category: "Traditional",
-    popularity: "Popular",
-    description: "A revered name in Islamic culture",
-    culturalSignificance: "Name of Prophet Muhammad's daughter",
-    historicalFigures: ["Fatima al-Zahra"],
-    variations: ["Fatimah", "Fatma"],
-    type: "baby",
-  },
-];
+// Fallback names when API fails
+const getFallbackNames = (type, formData) => {
+  const babyNames = [
+    {
+      id: Date.now() + 1,
+      name: "Aisha",
+      meaning: "Living, prosperous",
+      origin: "Arabic",
+      pronunciation: "AH-ee-shah",
+      category: "Traditional",
+      popularity: "Popular",
+      description: "A beautiful name meaning 'alive' or 'living one'",
+      culturalSignificance: "Name of Prophet Muhammad's wife",
+      historicalFigures: ["Aisha bint Abu Bakr"],
+      variations: ["Ayesha", "Aishah"],
+      type: "baby",
+    },
+    {
+      id: Date.now() + 2,
+      name: "Omar",
+      meaning: "Flourishing, thriving",
+      origin: "Arabic",
+      pronunciation: "OH-mar",
+      category: "Traditional",
+      popularity: "Popular",
+      description: "A strong name meaning prosperity",
+      culturalSignificance: "Name of the second Caliph",
+      historicalFigures: ["Omar ibn al-Khattab"],
+      variations: ["Umar", "Omer"],
+      type: "baby",
+    },
+  ];
 
-const mockBrandNames = [
-  {
-    id: 1,
-    name: "Nexura",
-    meaning: "Next-generation solutions",
-    category: "Technology",
-    description: "A modern, tech-forward name",
-    domainAvailable: true,
-    variations: ["Nexur", "Nexura.io"],
-    targetAudience: "Tech professionals",
-    type: "brand",
-  },
-  {
-    id: 2,
-    name: "Innovex",
-    meaning: "Innovation and excellence",
-    category: "Business",
-    description: "Combines innovation with excellence",
-    domainAvailable: true,
-    variations: ["Innovex.co", "Innovex.app"],
-    targetAudience: "Modern businesses",
-    type: "brand",
-  },
-];
+  const brandNames = [
+    {
+      id: Date.now() + 1,
+      name: "Nexura",
+      meaning: "Next-generation solutions",
+      category: "Technology",
+      description: "A modern, tech-forward name",
+      domainAvailable: true,
+      variations: ["Nexur", "Nexura.io"],
+      targetAudience: "Tech professionals",
+      type: "brand",
+    },
+    {
+      id: Date.now() + 2,
+      name: "Innovex",
+      meaning: "Innovation and excellence",
+      category: "Business",
+      description: "Combines innovation with excellence",
+      domainAvailable: true,
+      variations: ["Innovex.co", "Innovex.app"],
+      targetAudience: "Modern businesses",
+      type: "brand",
+    },
+  ];
+
+  return type === "baby" ? babyNames : brandNames;
+};
 
 // Main serverless function
 module.exports = async (req, res) => {
@@ -1677,9 +1680,8 @@ module.exports = async (req, res) => {
 
   try {
     console.log("Names API endpoint hit:", req.method, req.url);
-    console.log("Request headers:", JSON.stringify(req.headers, null, 2));
 
-    // Parse body safely with better error handling
+    // Parse body safely
     let body = {};
     try {
       if (req.body) {
@@ -1702,7 +1704,7 @@ module.exports = async (req, res) => {
       });
     }
 
-    console.log("Request body:", JSON.stringify(body, null, 2));
+    console.log("Request body:", body);
 
     if (req.method === "POST") {
       const { type, action, ...formData } = body;
@@ -1750,131 +1752,86 @@ module.exports = async (req, res) => {
         });
       }
 
-      console.log(`Starting ${type} name generation with data:`, formData);
-
-      let result;
+      console.log(`Starting ${type} name generation with:`, formData);
 
       try {
-        // Call the appropriate service
+        let result;
+
+        // Call the appropriate service function
         if (type === "baby") {
-          console.log("Calling generateBabyNames...");
           result = await generateBabyNames(formData);
         } else if (type === "brand") {
-          console.log("Calling generateBrandNames...");
           result = await generateBrandNames(formData);
         } else {
           return res.status(400).json({
             success: false,
-            error: "Invalid type",
-            received: type,
-            expected: "baby or brand",
+            error: "Invalid type. Must be 'baby' or 'brand'",
             timestamp: new Date().toISOString(),
           });
         }
 
-        console.log("Service result:", {
-          success: result?.success,
-          count: result?.names?.length || 0,
-          source: result?.source,
-        });
+        console.log("Service result:", result);
 
-        // Check if we got a valid result
-        if (!result) {
-          throw new Error("No result returned from name service");
-        }
-
-        // If service returned success=false, handle as error
-        if (result.success === false) {
-          throw new Error(
-            result.message || result.error || "Name generation failed"
-          );
-        }
-
-        // Validate that we have names
+        // Check if the service returned a successful result
         if (
-          !result.names ||
-          !Array.isArray(result.names) ||
-          result.names.length === 0
+          result &&
+          result.success &&
+          result.names &&
+          Array.isArray(result.names)
         ) {
-          console.warn("No names in result, using mock data");
-          const mockNames = type === "baby" ? mockBabyNames : mockBrandNames;
-          result = {
+          console.log(`✅ Successfully generated ${result.names.length} names`);
+
+          return res.status(200).json({
             success: true,
-            names: mockNames,
-            count: mockNames.length,
-            source: "mock",
-            message: `${type} names generated successfully (mock data)`,
-          };
+            names: result.names,
+            count: result.names.length,
+            type,
+            language: formData.language || "english",
+            timestamp: new Date().toISOString(),
+          });
+        } else {
+          // AI service failed, use fallback
+          console.warn("AI service failed, using fallback names");
+          const fallbackNames = getFallbackNames(type, formData);
+
+          return res.status(200).json({
+            success: true,
+            names: fallbackNames,
+            count: fallbackNames.length,
+            type,
+            language: formData.language || "english",
+            fallback: true,
+            timestamp: new Date().toISOString(),
+          });
         }
-
-        console.log(`Returning ${result.names.length} ${type} names`);
-
-        return res.status(200).json({
-          success: true,
-          names: result.names,
-          count: result.names.length,
-          type,
-          language: formData.language || "english",
-          source: result.source || "api",
-          message: result.message || `${type} names generated successfully`,
-          timestamp: new Date().toISOString(),
-        });
       } catch (serviceError) {
-        console.error(`${type} name generation service error:`, serviceError);
+        console.error("Service error:", serviceError);
 
-        // Fallback to mock data
-        console.log("Using mock data as fallback");
-        const mockNames = type === "baby" ? mockBabyNames : mockBrandNames;
-        const processedMockNames = mockNames.map((name, index) => ({
-          ...name,
-          id: Date.now() + index,
-        }));
+        // Use fallback names when service fails
+        const fallbackNames = getFallbackNames(type, formData);
 
         return res.status(200).json({
           success: true,
-          names: processedMockNames,
-          count: processedMockNames.length,
+          names: fallbackNames,
+          count: fallbackNames.length,
           type,
           language: formData.language || "english",
-          source: "mock",
-          message: `${type} names generated successfully (fallback)`,
-          warning: "AI service unavailable, using fallback data",
+          fallback: true,
+          error: serviceError.message,
           timestamp: new Date().toISOString(),
         });
       }
     }
 
     if (req.method === "GET") {
-      // Test endpoint
-      if (req.query.test === "true") {
-        console.log("Running connection test...");
-        const testResult = await testOpenRouterConnection();
-
-        return res.status(200).json({
-          success: true,
-          message: "Names API connection test",
-          test: testResult,
-          timestamp: new Date().toISOString(),
-          env: {
-            hasApiKey: !!process.env.OPENROUTER_API_KEY,
-            nodeEnv: process.env.NODE_ENV || "development",
-          },
-        });
-      }
-
       return res.status(200).json({
         success: true,
         message: "Names API is working",
         timestamp: new Date().toISOString(),
-        env: {
-          hasApiKey: !!process.env.OPENROUTER_API_KEY,
-          nodeEnv: process.env.NODE_ENV || "development",
-        },
         endpoints: {
           POST: "Generate names",
           "POST with action=suggestions": "Get name suggestions",
           "POST with action=details": "Get name details",
-          "GET with ?test=true": "Test API connection",
         },
       });
     }
@@ -1893,7 +1850,6 @@ module.exports = async (req, res) => {
       error: "Internal server error",
       message: error.message,
       timestamp: new Date().toISOString(),
-      stack: process.env.NODE_ENV === "development" ? error.stack : undefined,
     });
   }
 };
