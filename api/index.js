@@ -55,6 +55,6 @@ module.exports = (req, res) => {
       feedback: "/api/feedback",
       health: "/api/health",
     },
-    documentation: "https://github.com/your-username/name-generator-api",
+    // documentation: "https://github.com/your-username/name-generator-api",
   });
 };
