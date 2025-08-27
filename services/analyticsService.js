@@ -5,6 +5,8 @@ const analyticsData = {
   popularPreferences: new Map(),
 };
 
+// kkkk;
+
 /**
  * Track name generation event
  * @param {Object} eventData - Analytics event data
