@@ -1,24 +1,61 @@
 {
   "version": 2,
-  "name": "baby-brand-names-backend",
   "builds": [
     {
-      "src": "api/**/*.js",
+      "src": "api/index.js",
+      "use": "@vercel/node"
+    },
+    {
+      "src": "api/names.js",
+      "use": "@vercel/node"
+    },
+    {
+      "src": "api/domain.js",
+      "use": "@vercel/node"
+    },
+    {
+      "src": "api/analytics.js",
+      "use": "@vercel/node"
+    },
+    {
+      "src": "api/feedback.js",
+      "use": "@vercel/node"
+    },
+    {
+      "src": "api/health.js",
       "use": "@vercel/node"
     }
   ],
   "routes": [
     {
-      "src": "/api/(.*)",
-      "dest": "/api/$1"
+      "src": "/api/names",
+      "dest": "/api/names.js",
+      "methods": ["GET", "POST", "OPTIONS"]
+    },
+    {
+      "src": "/api/domain",
+      "dest": "/api/domain.js",
+      "methods": ["GET", "POST", "OPTIONS"]
+    },
+    {
+      "src": "/api/analytics",
+      "dest": "/api/analytics.js",
+      "methods": ["GET", "OPTIONS"]
+    },
+    {
+      "src": "/api/feedback",
+      "dest": "/api/feedback.js",
+      "methods": ["GET", "POST", "OPTIONS"]
+    },
+    {
+      "src": "/api/health",
+      "dest": "/api/health.js",
+      "methods": ["GET", "OPTIONS"]
+    },
+    {
+      "src": "/api",
+      "dest": "/api/index.js",
+      "methods": ["GET", "OPTIONS"]
     }
-  ],
-  "functions": {
-    "api/**/*.js": {
-      "maxDuration": 30
-    }
-  },
-  "env": {
-    "NODE_ENV": "production"
-  }
+  ]
 }
