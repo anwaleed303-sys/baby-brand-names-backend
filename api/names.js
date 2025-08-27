@@ -929,7 +929,7 @@ async function callAI(prompt) {
         headers: {
           Authorization: `Bearer ${OPENROUTER_API_KEY}`,
           "Content-Type": "application/json",
-          "HTTP-Referer": "https://namegenai.vercel.app",
+          "HTTP-Referer": "https://baby-brand-names-frontend.vercel.app/",
           "X-Title": "Name Generator API",
         },
         timeout: 25000,
