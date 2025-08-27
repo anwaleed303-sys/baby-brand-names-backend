@@ -9,6 +9,8 @@ const analyticsData = {
  * Track name generation event
  * @param {Object} eventData - Analytics event data
  */
+// fffff;
+
 async function trackNameGeneration(eventData) {
   try {
     const { type, formData, clientIP, userAgent, timestamp } = eventData;
