@@ -1247,7 +1247,7 @@ const openRouterClient = axios.create({
   headers: {
     Authorization: `Bearer ${OPENROUTER_API_KEY}`,
     "Content-Type": "application/json",
-    "HTTP-Referer": "http://localhost:3001",
+    "HTTP-Referer": "https://baby-brand-names-frontend.vercel.app/",
     "X-Title": "Baby & Brand Name Generator",
   },
 });
