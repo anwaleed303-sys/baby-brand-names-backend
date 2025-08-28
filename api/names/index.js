@@ -376,16 +376,16 @@ function generatePrompt(type, formData) {
 }
 
 // Call OpenRouter API with retry logic
-async function callAI(prompt, retries = 2) {
+async function callAI(prompt, retries = 1) {
   if (!OPENROUTER_API_KEY) {
+    console.error("No OpenRouter API key found");
     throw new Error("API key not configured");
   }
 
+  console.log("Calling OpenRouter API...");
+
   for (let attempt = 1; attempt <= retries + 1; attempt++) {
     try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 20000); // 20s timeout
-
       const response = await axios.post(
         `${OPENROUTER_BASE_URL}/chat/completions`,
         {
@@ -394,12 +394,12 @@ async function callAI(prompt, retries = 2) {
             {
               role: "system",
               content:
-                "You are a name generation expert. Return only valid JSON array. Do not include any markdown formatting or additional text. Ensure the response is a complete JSON array.",
+                'You are a name generation expert. Return only a valid JSON array with exactly 20 names. Format: [{"name":"...","meaning":"...","origin":"..."}]. No markdown, no extra text.',
             },
             { role: "user", content: prompt },
           ],
           temperature: 0.7,
-          max_tokens: 1500, // Reduced to prevent memory issues
+          max_tokens: 2000,
         },
         {
           headers: {
@@ -408,76 +408,107 @@ async function callAI(prompt, retries = 2) {
             "HTTP-Referer": "https://baby-brand-names-backend.vercel.app",
             "X-Title": "Name Generator API",
           },
-          signal: controller.signal,
+          timeout: 15000,
         }
       );
 
-      clearTimeout(timeoutId);
+      console.log("OpenRouter response status:", response.status);
 
       if (!response.data?.choices?.[0]?.message?.content) {
+        console.error("Invalid API response structure:", response.data);
         throw new Error("Invalid API response structure");
       }
 
-      return response.data.choices[0].message.content;
+      const content = response.data.choices[0].message.content;
+      console.log("AI Response received, length:", content.length);
+      return content;
     } catch (error) {
-      console.error(
-        `OpenRouter API Error (attempt ${attempt}):`,
-        error.response?.data || error.message
-      );
+      console.error(`OpenRouter API Error (attempt ${attempt}):`, {
+        message: error.message,
+        status: error.response?.status,
+        data: error.response?.data,
+      });
 
       if (attempt === retries + 1) {
         throw error;
       }
 
       // Wait before retry
-      await new Promise((resolve) => setTimeout(resolve, 1000 * attempt));
+      await new Promise((resolve) => setTimeout(resolve, 2000 * attempt));
     }
   }
 }
 
 // Parse AI response with better error handling
 function parseAIResponse(content, type) {
+  console.log(
+    "Parsing AI response, content preview:",
+    content.substring(0, 200)
+  );
+
   try {
     if (!content || typeof content !== "string") {
+      console.error("Invalid content:", typeof content, content?.length);
       throw new Error("Empty or invalid response content");
     }
 
     let cleaned = content.trim();
 
     // Remove markdown formatting
-    cleaned = cleaned.replace(/```json\s*/g, "").replace(/```\s*/g, "");
+    cleaned = cleaned.replace(/```json\s*/gi, "").replace(/```\s*/g, "");
 
-    // Remove any text before and after JSON
-    const jsonStart = cleaned.indexOf("[");
-    const jsonEnd = cleaned.lastIndexOf("]");
+    // Find JSON array
+    let jsonStart = cleaned.indexOf("[");
+    let jsonEnd = cleaned.lastIndexOf("]");
+
+    // If no brackets found, try to find object array pattern
+    if (jsonStart === -1) {
+      console.log("No brackets found, looking for objects...");
+      const objectPattern = /{[^}]*}/g;
+      const objects = cleaned.match(objectPattern);
+      if (objects && objects.length > 0) {
+        cleaned = "[" + objects.join(",") + "]";
+        jsonStart = 0;
+        jsonEnd = cleaned.length - 1;
+      }
+    }
 
     if (jsonStart === -1 || jsonEnd === -1 || jsonStart >= jsonEnd) {
+      console.error(
+        "No valid JSON structure found in:",
+        cleaned.substring(0, 300)
+      );
       throw new Error("No valid JSON array found in response");
     }
 
     const jsonString = cleaned.substring(jsonStart, jsonEnd + 1);
+    console.log("Extracted JSON string:", jsonString.substring(0, 200));
 
-    // Validate JSON structure
     let parsed;
     try {
       parsed = JSON.parse(jsonString);
     } catch (parseError) {
       console.error("JSON parse error:", parseError.message);
+      console.error("Failed JSON:", jsonString.substring(0, 500));
       throw new Error("Invalid JSON format in AI response");
     }
 
     if (!Array.isArray(parsed)) {
+      console.error("Parsed result is not array:", typeof parsed);
       throw new Error("Response is not an array");
     }
 
     if (parsed.length === 0) {
+      console.error("Empty array returned");
       throw new Error("Empty array returned from AI");
     }
 
-    // Generate unique IDs using timestamp and random number
+    console.log("Successfully parsed", parsed.length, "items");
+
+    // Generate unique IDs
     const baseTime = Date.now();
 
-    return parsed
+    const result = parsed
       .slice(0, 20)
       .map((item, index) => {
         if (!item || typeof item !== "object") {
@@ -496,9 +527,12 @@ function parseAIResponse(content, type) {
           ...item,
         };
       })
-      .filter(Boolean); // Remove null items
+      .filter(Boolean);
+
+    console.log("Final parsed result count:", result.length);
+    return result;
   } catch (error) {
-    console.error("Parse error:", error);
+    console.error("Parse error details:", error.message);
     throw new Error(`Failed to parse AI response: ${error.message}`);
   }
 }
@@ -555,26 +589,37 @@ module.exports = async (req, res) => {
         let names = [];
         let usedFallback = false;
 
+        console.log("Starting name generation for type:", type);
+        console.log("Form data received:", formData);
+
         try {
           if (OPENROUTER_API_KEY) {
+            console.log("API key available, generating prompt...");
             const prompt = generatePrompt(type, formData);
-            console.log(
-              "Calling AI with prompt:",
-              prompt.substring(0, 100) + "..."
-            );
+            console.log("Generated prompt:", prompt.substring(0, 150) + "...");
 
             const aiResponse = await callAI(prompt);
+            console.log("AI response received, parsing...");
             names = parseAIResponse(aiResponse, type);
 
-            // Ensure we have at least some names
             if (!names || names.length === 0) {
+              console.error("No valid names generated from AI, using fallback");
               throw new Error("No valid names generated from AI");
             }
+
+            console.log(
+              "Successfully generated",
+              names.length,
+              "names from AI"
+            );
           } else {
+            console.error("No API key available, using fallback");
             throw new Error("No API key available");
           }
         } catch (aiError) {
-          console.error("AI failed:", aiError.message);
+          console.error("AI generation failed:", aiError.message);
+          console.error("Full error:", aiError);
+
           // Only use basic fallback when AI completely fails
           const mockData = type === "baby" ? mockBabyNames : mockBrandNames;
           usedFallback = true;
@@ -584,7 +629,16 @@ module.exports = async (req, res) => {
             type,
             ...item,
           }));
+
+          console.log("Using fallback data, generated", names.length, "names");
         }
+
+        console.log(
+          "Returning response with",
+          names.length,
+          "names, usedFallback:",
+          usedFallback
+        );
 
         return res.status(200).json({
           success: true,
