@@ -61,7 +61,7 @@ function generatePrompt(type, formData) {
       length = "medium",
     } = formData;
 
-    return `Generate 10 authentic ${gender} baby names with ${religion} cultural background. 
+    return `Generate 20 authentic ${gender} baby names with ${religion} cultural background. 
     ${origin ? `Specific origin: ${origin}. ` : ""}
     ${keywords.length ? `Keywords: ${keywords.join(", ")}. ` : ""}
     ${meaning ? `Meaning: ${meaning}. ` : ""}
@@ -81,7 +81,7 @@ function generatePrompt(type, formData) {
       avoidNumbers = true,
     } = formData;
 
-    return `Generate 10 creative ${industry} brand names with ${style} style.
+    return `Generate 20 creative ${industry} brand names with ${style} style.
     ${keywords.length ? `Keywords: ${keywords.join(", ")}. ` : ""}
     ${description ? `Description: ${description}. ` : ""}
     ${targetAudience ? `Target audience: ${targetAudience}. ` : ""}
