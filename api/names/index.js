@@ -302,10 +302,9 @@ function setCorsHeaders(res) {
   );
 }
 
-// Mock fallback data
+// Minimal fallback data - only used when AI fails completely
 const mockBabyNames = [
   {
-    id: 1,
     name: "Aisha",
     meaning: "Living, prosperous",
     origin: "Arabic",
@@ -316,13 +315,11 @@ const mockBabyNames = [
     culturalSignificance: "Aisha was the name of Prophet Muhammad's wife",
     historicalFigures: ["Aisha bint Abu Bakr"],
     variations: ["Ayesha", "Aishah"],
-    type: "baby",
   },
 ];
 
 const mockBrandNames = [
   {
-    id: 1,
     name: "EduNova",
     meaning: "Educational innovation",
     category: "Education",
@@ -330,7 +327,6 @@ const mockBrandNames = [
     domainAvailable: true,
     variations: ["EduNov", "EduNova.io"],
     targetAudience: "Educators and students",
-    type: "brand",
   },
 ];
 
@@ -579,19 +575,15 @@ module.exports = async (req, res) => {
           }
         } catch (aiError) {
           console.error("AI failed:", aiError.message);
-          // Use mock data as fallback
-          names = type === "baby" ? [...mockBabyNames] : [...mockBrandNames];
+          // Only use basic fallback when AI completely fails
+          const mockData = type === "baby" ? mockBabyNames : mockBrandNames;
           usedFallback = true;
 
-          // Generate multiple mock entries
-          const baseNames = [...names];
-          for (let i = 1; i < 10; i++) {
-            names.push({
-              ...baseNames[0],
-              id: Date.now() + i + Math.floor(Math.random() * 1000),
-              name: `${baseNames[0].name}${i}`,
-            });
-          }
+          names = mockData.map((item, index) => ({
+            id: Date.now() + index + Math.floor(Math.random() * 1000),
+            type,
+            ...item,
+          }));
         }
 
         return res.status(200).json({
