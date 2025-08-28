@@ -285,6 +285,23 @@
 //   }
 // };
 
+// const axios = require("axios");
+
+// // Environment variables
+// const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
+// const OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1";
+
+// // Enhanced CORS headers function
+// function setCorsHeaders(res) {
+//   res.setHeader("Access-Control-Allow-Credentials", "true");
+//   res.setHeader("Access-Control-Allow-Origin", "*");
+//   res.setHeader("Access-Control-Allow-Methods", "GET,OPTIONS,POST,PUT,DELETE");
+//   res.setHeader(
+//     "Access-Control-Allow-Headers",
+//     "X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, Authorization, Origin"
+//   );
+// }
+
 const axios = require("axios");
 
 // Environment variables
@@ -302,116 +319,147 @@ function setCorsHeaders(res) {
   );
 }
 
-// Mock fallback data
-const mockBabyNames = [
-  {
-    id: 1,
-    name: "Aisha",
-    meaning: "Living, prosperous",
-    origin: "Arabic",
-    pronunciation: "AH-ee-shah",
-    category: "Traditional",
-    popularity: "Popular",
-    description: "A beautiful name meaning 'alive' or 'living one'",
-    culturalSignificance: "Aisha was the name of Prophet Muhammad's wife",
-    historicalFigures: ["Aisha bint Abu Bakr"],
-    variations: ["Ayesha", "Aishah"],
-    type: "baby",
-  },
-];
+// Religion-specific name generation prompts
+function generateReligionSpecificPrompt(type, formData) {
+  const {
+    gender = "unisex",
+    religion = "modern",
+    origin,
+    keywords = [],
+    meaning,
+    startsWith,
+    endsWith,
+    length = "medium",
+  } = formData;
 
-const mockBrandNames = [
-  {
-    id: 1,
-    name: "EduNova",
-    meaning: "Educational innovation",
-    category: "Education",
-    description: "A modern name for educational technology",
-    domainAvailable: true,
-    variations: ["EduNov", "EduNova.io"],
-    targetAudience: "Educators and students",
-    type: "brand",
-  },
-];
+  // Handle different gender formats
+  let genderText = gender;
+  if (gender === "girl" || gender === "female") {
+    genderText = "girl";
+  } else if (gender === "boy" || gender === "male") {
+    genderText = "boy";
+  } else {
+    genderText = "unisex";
+  }
 
-// Generate prompt for AI
-function generatePrompt(type, formData) {
+  // Religion-specific contexts and requirements
+  const religionContexts = {
+    islamic: {
+      context: "Islamic/Muslim",
+      origin: "Arabic, Persian, Turkish, Urdu",
+      culturalNote:
+        "with Islamic religious significance, following Islamic naming traditions",
+      examples: "like Muhammad, Aisha, Omar, Fatima, Ali, Khadija",
+      significance: "with meanings from Quran, Hadith, or Islamic history",
+    },
+    hindu: {
+      context: "Hindu/Sanskrit",
+      origin: "Sanskrit, Hindi, Tamil, Telugu, Bengali",
+      culturalNote:
+        "with Hindu religious significance, from Sanskrit literature",
+      examples: "like Krishna, Lakshmi, Arjun, Priya, Vishnu, Saraswati",
+      significance: "with meanings from Vedas, Puranas, or Hindu mythology",
+    },
+    christian: {
+      context: "Christian/Biblical",
+      origin: "Hebrew, Greek, Latin, English",
+      culturalNote: "with Christian religious significance, biblical origins",
+      examples: "like Matthew, Mary, John, Grace, David, Sarah",
+      significance: "with meanings from Bible or Christian tradition",
+    },
+    jewish: {
+      context: "Jewish/Hebrew",
+      origin: "Hebrew, Yiddish, Aramaic",
+      culturalNote: "with Jewish religious significance, Hebrew origins",
+      examples: "like Moses, Rachel, Isaac, Leah, Abraham, Miriam",
+      significance: "with meanings from Torah or Jewish tradition",
+    },
+    buddhist: {
+      context: "Buddhist",
+      origin: "Sanskrit, Pali, Tibetan, Thai, Chinese",
+      culturalNote: "with Buddhist religious significance, dharmic tradition",
+      examples: "like Buddha, Tara, Karma, Bodhi, Metta, Sangha",
+      significance:
+        "with meanings related to Buddhist teachings or enlightenment",
+    },
+    sikh: {
+      context: "Sikh/Punjabi",
+      origin: "Punjabi, Gurmukhi, Sanskrit",
+      culturalNote: "with Sikh religious significance, Punjabi tradition",
+      examples: "like Gurpreet, Simran, Harpreet, Jaspreet, Manpreet",
+      significance: "with meanings from Guru Granth Sahib or Sikh tradition",
+    },
+    modern: {
+      context: "Modern/Contemporary",
+      origin: "Various international origins",
+      culturalNote: "modern, trendy, and culturally diverse",
+      examples: "like Emma, Liam, Aria, Noah, Luna, Kai",
+      significance: "with contemporary meanings and global appeal",
+    },
+  };
+
+  const religionInfo =
+    religionContexts[religion.toLowerCase()] || religionContexts.modern;
+
   if (type === "baby") {
-    const {
-      gender = "unisex",
-      religion = "modern",
-      origin,
-      keywords = [],
-      meaning,
-      startsWith,
-      endsWith,
-      length = "medium",
-    } = formData;
-
-    // Handle different gender formats
-    let genderText = gender;
-    if (gender === "girl" || gender === "female") {
-      genderText = "girl";
-    } else if (gender === "boy" || gender === "male") {
-      genderText = "boy";
-    } else {
-      genderText = "unisex";
-    }
-
-    // Improved prompt for baby names
-    let prompt = `Generate exactly 20 authentic ${genderText} baby names`;
-
-    // Add religious/cultural context
-    if (religion && religion !== "modern") {
-      prompt += ` with ${religion} cultural background and significance`;
-    }
+    let prompt = `Generate exactly 15 authentic ${genderText} baby names with ${religionInfo.context} ${religionInfo.culturalNote}.`;
 
     // Add specific requirements
-    if (origin) prompt += `. Origin should be ${origin}`;
+    if (origin) {
+      prompt += ` Origin should be ${origin}`;
+    } else {
+      prompt += ` Origin should be ${religionInfo.origin}`;
+    }
+
     if (keywords.length > 0)
       prompt += `. Include names related to: ${keywords.join(", ")}`;
     if (meaning)
       prompt += `. Names should have meanings related to: ${meaning}`;
     if (startsWith) prompt += `. Names must start with "${startsWith}"`;
     if (endsWith) prompt += `. Names must end with "${endsWith}"`;
+
+    // Length preferences
     if (length === "short") prompt += `. Prefer short names (3-5 letters)`;
     if (length === "long") prompt += `. Prefer longer names (6+ letters)`;
 
-    // Add gender-specific instructions
+    // Add religion-specific guidance
+    prompt += ` ${religionInfo.significance}.`;
+
+    // Gender-specific instructions
     if (genderText === "boy") {
-      prompt += `. Focus on traditionally masculine names suitable for boys`;
+      prompt += ` Focus on traditionally masculine names suitable for boys`;
     } else if (genderText === "girl") {
-      prompt += `. Focus on traditionally feminine names suitable for girls`;
+      prompt += ` Focus on traditionally feminine names suitable for girls`;
     } else {
-      prompt += `. Focus on gender-neutral names suitable for any child`;
+      prompt += ` Focus on gender-neutral names suitable for any child`;
     }
 
-    prompt += `\n\nIMPORTANT: Return ONLY a valid JSON array with this EXACT format:
+    // Add examples for context
+    prompt += ` ${religionInfo.examples}.`;
+
+    prompt += `\n\nCRITICAL: Return ONLY a valid JSON array. No text before or after. Format:
 [
   {
-    "name": "Example Name",
-    "meaning": "Detailed meaning of the name",
-    "origin": "${
-      religion === "hindu"
-        ? "Sanskrit/Hindi"
-        : religion === "muslim"
-        ? "Arabic/Islamic"
-        : origin || "Various"
-    }",
-    "pronunciation": "phonetic pronunciation",
-    "category": "Traditional",
-    "popularity": "Popular",
-    "description": "Brief description of the name",
-    "culturalSignificance": "Cultural or religious significance",
+    "name": "Name Here",
+    "meaning": "Detailed meaning and significance",
+    "origin": "${religionInfo.origin.split(",")[0].trim()}",
+    "pronunciation": "phonetic guide",
+    "category": "${religionInfo.context}",
+    "popularity": "Popular/Moderate/Rare",
+    "description": "Brief name description",
+    "culturalSignificance": "Religious/cultural importance",
     "historicalFigures": ["Notable people with this name"],
-    "variations": ["Alternative spellings or versions"]
+    "variations": ["Alternative spellings"]
   }
 ]
 
-Do not include any text before or after the JSON array. Generate exactly 20 ${genderText} names.`;
+Generate exactly 15 ${genderText} ${
+      religionInfo.context
+    } names. Return only JSON.`;
 
     return prompt;
   } else {
+    // Brand names logic remains the same
     const {
       industry = "business",
       style = "modern",
@@ -422,107 +470,167 @@ Do not include any text before or after the JSON array. Generate exactly 20 ${ge
       avoidNumbers = true,
     } = formData;
 
-    return `Generate 20 creative ${industry} brand names with ${style} style.
+    return `Generate 15 creative ${industry} brand names with ${style} style.
     ${keywords.length ? `Keywords: ${keywords.join(", ")}. ` : ""}
     ${description ? `Description: ${description}. ` : ""}
     ${targetAudience ? `Target audience: ${targetAudience}. ` : ""}
     Length: ${length}.
     ${avoidNumbers ? "Avoid numbers in names. " : ""}
 
-    Return as JSON array with format: [{"name": "...", "meaning": "...", "category": "...", "description": "...", "domainAvailable": true, "variations": [], "targetAudience": "..."}]`;
+    Return ONLY JSON array: [{"name": "...", "meaning": "...", "category": "...", "description": "...", "domainAvailable": true, "variations": [], "targetAudience": "..."}]`;
   }
 }
 
-// Call OpenRouter API
+// Optimized AI call with better error handling
 async function callAI(prompt) {
   if (!OPENROUTER_API_KEY) {
-    throw new Error("API key not configured");
+    throw new Error("OPENROUTER_API_KEY environment variable is not set");
   }
 
+  const controllers = [];
+  const timeoutId = setTimeout(() => {
+    controllers.forEach((controller) => controller.abort());
+  }, 25000); // 25 second timeout
+
   try {
+    const controller = new AbortController();
+    controllers.push(controller);
+
+    // Use a faster, more reliable model
     const response = await axios.post(
       `${OPENROUTER_BASE_URL}/chat/completions`,
       {
-        model: "mistralai/mistral-7b-instruct:free",
+        model: "mistralai/mistral-7b-instruct:free", // Keep free model but optimize settings
         messages: [
           {
             role: "system",
-            content:
-              "You are a professional name generation expert specializing in both baby names and brand names. You have extensive knowledge of names from various cultures, religions, and traditions. Always return valid JSON arrays without any markdown formatting or additional text. Be accurate with cultural and religious contexts.",
+            content: `You are an expert name generator with deep knowledge of names from all world religions and cultures. 
+            
+CRITICAL INSTRUCTIONS:
+- Return ONLY valid JSON array, no markdown, no extra text
+- Be culturally accurate and respectful
+- Include authentic pronunciation guides
+- Provide meaningful cultural context
+- Generate exactly the requested number of names
+- Each name must be real and authentic to its cultural/religious tradition`,
           },
           { role: "user", content: prompt },
         ],
-        temperature: 0.8,
-        max_tokens: 3000,
-        top_p: 0.9,
+        temperature: 0.7, // Slightly lower for more consistent results
+        max_tokens: 2500, // Reduced for faster response
+        top_p: 0.8, // Reduced for more focused results
+        frequency_penalty: 0.3, // Reduce repetition
+        presence_penalty: 0.1, // Encourage diversity
       },
       {
         headers: {
           Authorization: `Bearer ${OPENROUTER_API_KEY}`,
           "Content-Type": "application/json",
           "HTTP-Referer": "https://baby-brand-names-backend.vercel.app",
-          "X-Title": "Name Generator API",
+          "X-Title": "Religious Name Generator API",
         },
-        timeout: 30000,
+        timeout: 25000, // 25 seconds
+        signal: controller.signal,
       }
     );
 
+    clearTimeout(timeoutId);
     return response.data.choices[0].message.content;
   } catch (error) {
+    clearTimeout(timeoutId);
+
+    if (error.code === "ECONNABORTED" || error.message.includes("timeout")) {
+      throw new Error(
+        "Request timed out. The AI service is taking too long to respond. Please try again."
+      );
+    }
+
+    if (error.response?.status === 429) {
+      throw new Error(
+        "Rate limit exceeded. Please wait a moment and try again."
+      );
+    }
+
+    if (error.response?.status === 401) {
+      throw new Error(
+        "Invalid API key. Please check your OpenRouter API configuration."
+      );
+    }
+
     console.error(
       "OpenRouter API Error:",
       error.response?.data || error.message
     );
-    throw error;
+    throw new Error(
+      `AI service error: ${
+        error.response?.data?.error?.message || error.message
+      }`
+    );
   }
 }
 
-// Parse AI response
+// Enhanced response parser
 function parseAIResponse(content, type) {
   try {
     let cleaned = content.trim();
 
-    // Remove markdown formatting
+    // Remove any markdown formatting
     cleaned = cleaned.replace(/```json\s*/g, "").replace(/```\s*/g, "");
     cleaned = cleaned.replace(/^```/g, "").replace(/```$/g, "");
+    cleaned = cleaned.replace(/^json\s*/g, "");
 
-    // Find JSON array in the response
-    const jsonMatch = cleaned.match(/\[[\s\S]*\]/);
+    // Extract JSON array
+    let jsonMatch = cleaned.match(/\[[\s\S]*\]/);
     if (!jsonMatch) {
-      console.error("No JSON array found in response:", cleaned);
-      throw new Error("No JSON array found in response");
+      // Try to find object array pattern
+      jsonMatch = cleaned.match(/\[\s*\{[\s\S]*\}\s*\]/);
+    }
+
+    if (!jsonMatch) {
+      console.error(
+        "No JSON array found in AI response:",
+        cleaned.substring(0, 500)
+      );
+      throw new Error("Invalid AI response format - no JSON array found");
     }
 
     const parsed = JSON.parse(jsonMatch[0]);
 
     if (!Array.isArray(parsed)) {
-      throw new Error("Response is not an array");
+      throw new Error("AI response is not an array");
+    }
+
+    if (parsed.length === 0) {
+      throw new Error("AI returned empty array");
     }
 
     // Validate and format the response
     return parsed.map((item, index) => {
+      if (!item.name) {
+        throw new Error(`Missing name field in item ${index + 1}`);
+      }
+
       const baseItem = {
-        id: Date.now() + index,
+        id: Date.now() + index + Math.floor(Math.random() * 1000),
         type,
-        name: item.name || `Name ${index + 1}`,
-        meaning: item.meaning || "Unknown meaning",
+        name: item.name.trim(),
+        meaning: item.meaning || "Meaning not specified",
         category: item.category || "General",
-        description: item.description || "No description available",
+        description: item.description || `${item.name} is a beautiful name`,
       };
 
       if (type === "baby") {
         return {
           ...baseItem,
-          origin: item.origin || "Unknown origin",
-          pronunciation: item.pronunciation || item.name || "",
+          origin: item.origin || "Origin not specified",
+          pronunciation: item.pronunciation || item.name,
           popularity: item.popularity || "Moderate",
           culturalSignificance:
-            item.culturalSignificance || "No specific cultural significance",
+            item.culturalSignificance || "Cultural significance varies",
           historicalFigures: Array.isArray(item.historicalFigures)
             ? item.historicalFigures
             : [],
           variations: Array.isArray(item.variations) ? item.variations : [],
-          ...item,
         };
       } else {
         return {
@@ -530,153 +638,18 @@ function parseAIResponse(content, type) {
           domainAvailable: item.domainAvailable !== false,
           variations: Array.isArray(item.variations) ? item.variations : [],
           targetAudience: item.targetAudience || "General audience",
-          ...item,
         };
       }
     });
   } catch (error) {
-    console.error("Parse error:", error);
-    console.error("Raw content:", content);
+    console.error("Parse error:", error.message);
+    console.error(
+      "Raw AI content (first 1000 chars):",
+      content.substring(0, 1000)
+    );
     throw new Error(`Failed to parse AI response: ${error.message}`);
   }
 }
-
-// Enhanced mock data for different gender categories
-const mockBabyNamesByGender = {
-  boy: [
-    {
-      id: 1,
-      name: "Arjun",
-      meaning: "Bright, shining, white",
-      origin: "Sanskrit",
-      pronunciation: "AR-jun",
-      category: "Traditional",
-      popularity: "Very Popular",
-      description: "A heroic name from the Mahabharata",
-      culturalSignificance: "One of the Pandava brothers, skilled archer",
-      historicalFigures: ["Arjuna from Mahabharata"],
-      variations: ["Arjuna", "Arjun"],
-      type: "baby",
-    },
-    {
-      id: 2,
-      name: "Krishna",
-      meaning: "Dark, black",
-      origin: "Sanskrit",
-      pronunciation: "KRISH-na",
-      category: "Divine",
-      popularity: "Very Popular",
-      description: "Name of Lord Krishna, eighth avatar of Vishnu",
-      culturalSignificance:
-        "Major deity in Hinduism, central figure in Bhagavad Gita",
-      historicalFigures: ["Lord Krishna"],
-      variations: ["Krisna", "Krish"],
-      type: "baby",
-    },
-    {
-      id: 3,
-      name: "Raj",
-      meaning: "King, rule",
-      origin: "Sanskrit",
-      pronunciation: "RAHJ",
-      category: "Traditional",
-      popularity: "Popular",
-      description: "A strong name meaning king or ruler",
-      culturalSignificance: "Symbol of leadership and authority",
-      historicalFigures: ["Various Indian rulers"],
-      variations: ["Raja", "Rajesh"],
-      type: "baby",
-    },
-  ],
-  girl: [
-    {
-      id: 4,
-      name: "Priya",
-      meaning: "Beloved, dear one",
-      origin: "Sanskrit",
-      pronunciation: "PREE-ya",
-      category: "Traditional",
-      popularity: "Very Popular",
-      description: "A beautiful name meaning beloved",
-      culturalSignificance: "Often used to address someone dear",
-      historicalFigures: ["Various notable women"],
-      variations: ["Priyanka", "Priyam"],
-      type: "baby",
-    },
-    {
-      id: 5,
-      name: "Devi",
-      meaning: "Goddess, divine",
-      origin: "Sanskrit",
-      pronunciation: "DEH-vee",
-      category: "Divine",
-      popularity: "Popular",
-      description: "Sacred name referring to the divine feminine",
-      culturalSignificance: "Represents the divine mother goddess",
-      historicalFigures: ["Various goddesses in Hindu mythology"],
-      variations: ["Devika", "Devya"],
-      type: "baby",
-    },
-    {
-      id: 6,
-      name: "Ananya",
-      meaning: "Unique, matchless",
-      origin: "Sanskrit",
-      pronunciation: "ah-NAN-ya",
-      category: "Modern Traditional",
-      popularity: "Very Popular",
-      description: "A name meaning unique or incomparable",
-      culturalSignificance: "Represents individuality and uniqueness",
-      historicalFigures: ["Contemporary notable figures"],
-      variations: ["Ananyaa", "Ananaya"],
-      type: "baby",
-    },
-  ],
-  unisex: [
-    {
-      id: 7,
-      name: "Arya",
-      meaning: "Noble, honorable",
-      origin: "Sanskrit",
-      pronunciation: "AR-ya",
-      category: "Modern",
-      popularity: "Very Popular",
-      description: "A gender-neutral name meaning noble",
-      culturalSignificance: "Represents nobility and honor in Hindu tradition",
-      historicalFigures: ["Used for both men and women in history"],
-      variations: ["Aarya", "Aria"],
-      type: "baby",
-    },
-    {
-      id: 8,
-      name: "Kiran",
-      meaning: "Ray of light, beam",
-      origin: "Sanskrit",
-      pronunciation: "KEE-ran",
-      category: "Traditional",
-      popularity: "Popular",
-      description: "A unisex name meaning ray of light",
-      culturalSignificance: "Symbolizes enlightenment and brightness",
-      historicalFigures: ["Kiran Bedi", "Various other notable figures"],
-      variations: ["Kiron", "Kiren"],
-      type: "baby",
-    },
-    {
-      id: 9,
-      name: "Avani",
-      meaning: "Earth, nature",
-      origin: "Sanskrit",
-      pronunciation: "ah-VAH-nee",
-      category: "Nature",
-      popularity: "Popular",
-      description: "A nature-inspired unisex name",
-      culturalSignificance: "Connects to Mother Earth and nature worship",
-      historicalFigures: ["Contemporary usage"],
-      variations: ["Avanee", "Avany"],
-      type: "baby",
-    },
-  ],
-};
 
 // Main serverless function
 module.exports = async (req, res) => {
@@ -712,7 +685,10 @@ module.exports = async (req, res) => {
       });
     }
 
-    console.log("Request received:", { method: req.method, body });
+    console.log("Request received:", {
+      method: req.method,
+      body: { ...body, timestamp: new Date().toISOString() },
+    });
 
     if (req.method === "POST") {
       const { type, action, ...formData } = body;
@@ -727,67 +703,65 @@ module.exports = async (req, res) => {
           });
         }
 
-        let names = [];
-
-        try {
-          if (OPENROUTER_API_KEY) {
-            const prompt = generatePrompt(type, formData);
-            console.log(
-              "Generated prompt for",
-              type,
-              ":",
-              prompt.substring(0, 200) + "..."
-            );
-
-            const aiResponse = await callAI(prompt);
-            console.log(
-              "AI Response received:",
-              aiResponse.substring(0, 200) + "..."
-            );
-
-            names = parseAIResponse(aiResponse, type);
-            console.log("Parsed names count:", names.length);
-          } else {
-            console.log("No API key, using fallback data");
-            throw new Error("No API key available");
-          }
-        } catch (aiError) {
-          console.error("AI failed:", aiError.message);
-
-          // Enhanced fallback logic for all genders
-          if (type === "baby") {
-            const { gender, religion } = formData;
-            let genderKey = "unisex"; // default
-
-            if (gender === "boy" || gender === "male") {
-              genderKey = "boy";
-            } else if (gender === "girl" || gender === "female") {
-              genderKey = "girl";
-            } else {
-              genderKey = "unisex";
-            }
-
-            // Use gender-specific mock data
-            if (mockBabyNamesByGender[genderKey]) {
-              names = mockBabyNamesByGender[genderKey];
-            } else {
-              // Fallback to general mock data
-              names = mockBabyNames;
-            }
-
-            console.log(`Using fallback ${genderKey} names:`, names.length);
-          } else {
-            names = mockBrandNames;
-          }
+        // Validate required parameters for baby names
+        if (type === "baby" && !formData.religion) {
+          return res.status(400).json({
+            success: false,
+            error: "Religion is required for baby name generation",
+            availableReligions: [
+              "islamic",
+              "hindu",
+              "christian",
+              "jewish",
+              "buddhist",
+              "sikh",
+              "modern",
+            ],
+            timestamp: new Date().toISOString(),
+          });
         }
 
-        return res.status(200).json({
-          success: true,
-          names,
-          count: names.length,
-          type,
-          timestamp: new Date().toISOString(),
-        });
+        try {
+          const prompt = generateReligionSpecificPrompt(type, formData);
+          console.log(
+            "Generated prompt for",
+            type,
+            "with religion",
+            formData.religion,
+            ":",
+            prompt.substring(0, 300) + "..."
+          );
+
+          const aiResponse = await callAI(prompt);
+          console.log("AI Response received (length):", aiResponse.length);
+
+          const names = parseAIResponse(aiResponse, type);
+          console.log("Successfully parsed names count:", names.length);
+
+          return res.status(200).json({
+            success: true,
+            names,
+            count: names.length,
+            type,
+            religion: formData.religion || "modern",
+            gender: formData.gender || "unisex",
+            timestamp: new Date().toISOString(),
+          });
+        } catch (apiError) {
+          console.error("API Error:", apiError.message);
+
+          // Return proper error without fallback to static data
+          return res.status(500).json({
+            success: false,
+            error: "Failed to generate names from AI service",
+            message: apiError.message,
+            type,
+            religion: formData.religion || "unknown",
+            timestamp: new Date().toISOString(),
+            suggestion:
+              "Please try again. If the problem persists, the AI service may be temporarily unavailable.",
+          });
+        }
       }
 
       // Handle other actions
@@ -801,12 +775,23 @@ module.exports = async (req, res) => {
     if (req.method === "GET") {
       return res.status(200).json({
         success: true,
-        message: "Names API is working",
+        message: "Religious Names API is working",
         timestamp: new Date().toISOString(),
+        supportedReligions: {
+          islamic:
+            "Islamic/Muslim names from Arabic, Persian, Turkish traditions",
+          hindu: "Hindu/Sanskrit names from Vedic and Puranic traditions",
+          christian:
+            "Christian/Biblical names from Hebrew, Greek, Latin origins",
+          jewish: "Jewish/Hebrew names from Torah and Jewish traditions",
+          buddhist: "Buddhist names from Sanskrit, Pali, Tibetan traditions",
+          sikh: "Sikh/Punjabi names from Gurmukhi and Sikh traditions",
+          modern: "Modern contemporary names from various cultures",
+        },
         endpoints: {
-          POST: "Generate names",
-          "POST with action=suggestions": "Get name suggestions",
-          "POST with action=details": "Get name details",
+          "POST /api/names":
+            "Generate names (requires type: 'baby'|'brand', religion for baby names)",
+          "GET /api/names": "API status and documentation",
         },
       });
     }
@@ -818,7 +803,7 @@ module.exports = async (req, res) => {
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
-    console.error("API Error:", error);
+    console.error("Unexpected API Error:", error);
     return res.status(500).json({
       success: false,
       error: "Internal server error",
@@ -827,23 +812,6 @@ module.exports = async (req, res) => {
     });
   }
 };
-
-// const axios = require("axios");
-
-// // Environment variables
-// const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
-// const OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1";
-
-// // Enhanced CORS headers function
-// function setCorsHeaders(res) {
-//   res.setHeader("Access-Control-Allow-Credentials", "true");
-//   res.setHeader("Access-Control-Allow-Origin", "*");
-//   res.setHeader("Access-Control-Allow-Methods", "GET,OPTIONS,POST,PUT,DELETE");
-//   res.setHeader(
-//     "Access-Control-Allow-Headers",
-//     "X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, Authorization, Origin"
-//   );
-// }
 
 // // Minimal fallback data - only used when AI fails completely
 // const mockBabyNames = [
